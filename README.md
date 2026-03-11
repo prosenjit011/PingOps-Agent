@@ -1,7 +1,7 @@
-# AIC Sentinel
+# PingOps-Agent
 
 **Version:** 1.0.0
-**Author:** Mark Nienaber
+**Author:** Prosenjit Singha
 
 A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live tailing, historical search, unified AM/IDM views, and intelligent noise filtering.
 
@@ -11,7 +11,7 @@ A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live taili
 
 ## Overview
 
-AIC Sentinel provides a browser-based dashboard for monitoring and searching PingOne Advanced Identity Cloud logs. Unlike CLI-based tools that separate AM and IDM log streams, this tool presents a unified, filterable view of all log sources in a single interface.
+PingOps-Agent provides a browser-based dashboard for monitoring and searching PingOne Advanced Identity Cloud logs. Unlike CLI-based tools that separate AM and IDM log streams, this tool presents a unified, filterable view of all log sources in a single interface.
 
 Key capabilities:
 - **Real-time log streaming** via WebSocket with configurable poll frequency
@@ -34,7 +34,7 @@ That said, the outstanding [**Frodo CLI**](https://github.com/rockcarver/frodo-c
 - **[Frodo Library (frodo-lib)](https://github.com/rockcarver/frodo-lib)** - The underlying Node.js library that powers Frodo CLI. Provides a comprehensive, typed API for all AIC operations including authentication, configuration management, and log access.
 - **[Frodo CLI Documentation](https://github.com/rockcarver/frodo-cli/blob/main/README.md)** - Full usage guide, command reference, and examples.
 
-A future version of AIC Sentinel may integrate with frodo-lib to unlock capabilities beyond log monitoring - such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
+A future version of PingOps-Agent may integrate with frodo-lib to unlock capabilities beyond log monitoring - such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
 
 Also worth noting is [**fidc-debug-tools**](https://github.com/vscheuber/fidc-debug-tools) by Volker Scheuber, which was the original inspiration for this project. It provides CLI-based log tailing with configurable filters and is great when you want to pipe output to `jq` or integrate with other shell tools.
 
@@ -79,8 +79,8 @@ You must create a Log API key/secret pair in your AIC tenant:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/mark-nienaber/aic-sentinel.git
-cd aic-sentinel
+git clone https://github.com/prosenjit011/PingOps-Agent.git
+cd PingOps-Agent
 ```
 
 ### 2. Install Dependencies
@@ -136,7 +136,7 @@ npm run dev
 Once started, you will see:
 
 ```
-AIC Sentinel running at http://localhost:3000
+PingOps-Agent running at http://localhost:3000
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -391,4 +391,3 @@ The AIC Monitoring API allows 60 requests per minute. The status bar shows curre
 
 ## License
 
-MIT
