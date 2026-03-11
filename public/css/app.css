@@ -1,0 +1,98 @@
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* JSON syntax highlighting */
+.json-key { color: #93c5fd; }
+.json-string { color: #86efac; }
+.json-number { color: #fbbf24; }
+.json-boolean { color: #f472b6; }
+.json-null { color: #94a3b8; }
+
+/* Smooth transitions for log entries */
+[x-transition] {
+  transition-property: opacity, transform;
+}
+
+/* Range input styling */
+input[type="range"] {
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #334155;
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #B22222;
+  cursor: pointer;
+}
+
+/* Checkbox styling override */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #64748b;
+  border-radius: 3px;
+  background: #1e293b;
+  cursor: pointer;
+  position: relative;
+}
+input[type="checkbox"]:checked {
+  background: #B22222;
+  border-color: #B22222;
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Date/time input dark mode - ensure time portion is visible */
+input[type="datetime-local"] {
+  color-scheme: dark;
+  min-width: 0;
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+input[type="datetime-local"]::-webkit-datetime-edit {
+  color: white;
+}
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  color: white;
+}
+
+/* Prevent text selection on log rows for cleaner click experience */
+.font-mono div[class*="cursor-pointer"] {
+  user-select: none;
+}
+.font-mono pre {
+  user-select: text;
+}

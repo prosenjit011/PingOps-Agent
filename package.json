@@ -1,0 +1,20 @@
+{
+  "name": "aic-sentinel",
+  "version": "1.0.0",
+  "description": "Web-based PingOne AIC log viewer with live tailing, historical search, and noise filtering",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "stop": "lsof -ti:${PORT:-3000} | xargs kill 2>/dev/null || echo 'No process found on port ${PORT:-3000}'",
+    "dev": "node --watch server.js",
+    "test:e2e": "node tests/e2e.test.js"
+  },
+  "author": "Mark Nienaber",
+  "keywords": ["pingone", "aic", "forgerock", "logs", "monitoring", "debug"],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "express": "^4.18.0",
+    "ws": "^8.16.0"
+  }
+}

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PingOps Trace Agent</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' rx='8' fill='%23B22222'/><path d='M12 14h16v3H12zM12 20h16v3H12zM12 26h12v3H12z' fill='white'/></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ping: { orange: '#B22222', dark: '#1a1a2e' }
+          }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="h-full bg-slate-900 text-slate-100 dark" x-data="app" @keydown.window="handleKeydown($event)">
+
+  <!-- CONNECTION PAGE -->
+  <div x-show="!connected" x-transition class="min-h-full flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center gap-3 mb-2">
+          <svg class="w-10 h-10" viewBox="0 0 40 40" fill="none">
+            <rect width="40" height="40" rx="8" fill="#B22222"/>
+            <path d="M12 14h16v3H12zM12 20h16v3H12zM12 26h12v3H12z" fill="white"/>
+          </svg>
+          <h1 class="text-3xl font-bold text-white">PingOps <span class="text-ping-orange">Trace Agent</span></h1>
+        </div>
+        <p class="text-slate-400 text-sm">Connect to your PingOne Advanced Identity Cloud tenant</p>
+      </div>
+
+      <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl p-6 space-y-4">
+        <!-- Saved connections dropdown -->
+        <div x-show="savedConnections.length > 0">
+          <label class="block text-sm font-medium text-slate-300 mb-1">Saved Connections</label>
+          <div class="relative" @click.away="showSavedDropdown = false">
+            <button @click="showSavedDropdown = !showSavedDropdown"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-ping-orange"
+              :class="selectedConnectionIdx >= 0 ? 'text-white' : 'text-slate-500'">
+              <span x-text="selectedConnectionIdx >= 0 ? savedConnections[selectedConnectionIdx].name : 'Select a saved connection...'"></span>
+              <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div x-show="showSavedDropdown" x-transition
+              class="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded-lg border border-slate-600 shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
+              <template x-for="(conn, idx) in savedConnections" :key="idx">
+                <div class="flex items-center justify-between px-3 py-2 hover:bg-slate-600 cursor-pointer group"
+                  @click="loadSavedConnection(idx)">
+                  <div class="min-w-0">
+                    <div class="text-sm text-white truncate" x-text="conn.name"></div>
+                    <div class="text-[10px] text-slate-400 truncate" x-text="conn.origin"></div>
+                  </div>
+                  <button @click.stop="deleteSavedConnection(idx)" class="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" title="Delete saved connection">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </template>
+              <div @click="selectedConnectionIdx = -1; origin = ''; apiKey = ''; apiSecret = ''; showSavedDropdown = false"
+                class="px-3 py-2 hover:bg-slate-600 cursor-pointer text-sm text-slate-400 border-t border-slate-600">
+                New connection...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">Tenant URL</label>
+          <input type="url" x-model="origin" placeholder="https://openam-tenant.forgeblocks.com"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ping-orange focus:border-transparent">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">API Key</label>
+          <div class="relative">
+            <input :type="showKey ? 'text' : 'password'" x-model="apiKey" placeholder="API Key ID"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ping-orange focus:border-transparent">
+            <button @click="showKey = !showKey" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+              <svg x-show="!showKey" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              <svg x-show="showKey" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">API Secret</label>
+          <div class="relative">
+            <input :type="showSecret ? 'text' : 'password'" x-model="apiSecret" placeholder="API Key Secret"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ping-orange focus:border-transparent">
+            <button @click="showSecret = !showSecret" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+              <svg x-show="!showSecret" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              <svg x-show="showSecret" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div x-show="connectionError" class="bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 text-sm text-red-300" x-text="connectionError"></div>
+
+        <button @click="connect()" :disabled="connecting"
+          class="w-full bg-ping-orange hover:bg-orange-600 disabled:opacity-50 disabled:cursor-wait text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors">
+          <span x-show="!connecting">Connect</span>
+          <span x-show="connecting" class="flex items-center justify-center gap-2">
+            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Connecting...
+          </span>
+        </button>
+
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" x-model="saveConnection" class="rounded border-slate-500 bg-slate-900 text-ping-orange focus:ring-ping-orange">
+          <span class="text-xs text-slate-400">Save this connection</span>
+        </label>
+
+        <!-- Custom headers indicator -->
+        <div x-show="customHeaders.length > 0" class="flex items-center gap-2 text-xs text-purple-400">
+          <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+          <span x-text="customHeaders.length + ' custom header(s) active'"></span>
+        </div>
+      </div>
+
+      <p class="text-center text-slate-600 text-xs mt-4 cursor-pointer select-none" @click="handleVersionClick()" x-text="'v1.0.0'"></p>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD -->
+  <div x-show="connected" x-transition class="h-full flex flex-col">
+
+    <!-- HEADER BAR -->
+    <header class="bg-slate-800 border-b border-slate-700 px-4 py-2 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-3">
+        <svg class="w-7 h-7" viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" rx="8" fill="#B22222"/>
+          <path d="M12 14h16v3H12zM12 20h16v3H12zM12 26h12v3H12z" fill="white"/>
+        </svg>
+        <span class="font-semibold text-white text-sm">PingOps <span class="text-ping-orange">Trace Agent</span></span>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <!-- Connection status -->
+        <div class="flex items-center gap-2 text-xs">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span class="text-slate-300" x-text="tenantName"></span>
+          <span x-show="customHeaders.length > 0" class="w-2 h-2 rounded-full bg-purple-500" title="Custom headers active"></span>
+        </div>
+
+        <!-- Toolbar buttons -->
+        <div class="flex items-center gap-1">
+          <button @click="showHistory = !showHistory" :class="showHistory ? 'bg-slate-600' : 'hover:bg-slate-700'" class="p-1.5 rounded text-slate-300 hover:text-white transition-colors" title="Historical Search (Ctrl+H)">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </button>
+          <button @click="showExport = true" class="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-700 transition-colors" title="Export Logs">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </button>
+          <button @click="showSettings = !showSettings" :class="showSettings ? 'bg-slate-600' : 'hover:bg-slate-700'" class="p-1.5 rounded text-slate-300 hover:text-white transition-colors" title="Settings">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </button>
+          <button @click="disconnect()" class="p-1.5 rounded text-slate-300 hover:text-red-400 hover:bg-slate-700 transition-colors" title="Disconnect">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- RECONNECTION BANNER -->
+    <div x-show="reconnecting" x-transition class="bg-yellow-900/50 border-b border-yellow-700 px-4 py-1.5 text-center text-xs text-yellow-300 shrink-0 flex items-center justify-center gap-2">
+      <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      <span>Reconnecting... (attempt <span x-text="reconnectAttempts"></span>)</span>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="bg-slate-800/50 border-b border-slate-700 px-4 py-2 flex items-center gap-3 flex-wrap shrink-0">
+      <!-- Source selector -->
+      <div class="relative" x-data="{ open: false }">
+        <button @click="open = !open" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors">
+          <span>Sources</span>
+          <span class="bg-ping-orange text-white rounded-full px-1.5 py-0.5 text-[10px]" x-text="activeSources.length"></span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" @click.away="open = false" x-transition
+          class="absolute top-full left-0 mt-1 w-56 bg-slate-700 rounded-lg border border-slate-600 shadow-xl z-50 py-2 max-h-80 overflow-y-auto">
+          <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">AM Sources</div>
+          <template x-for="src in availableSources.filter(s => s.id.startsWith('am-'))" :key="src.id">
+            <label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-600 cursor-pointer">
+              <input type="checkbox" :value="src.id" x-model="activeSources" @change="restartTail()" class="rounded border-slate-500 bg-slate-800 text-ping-orange focus:ring-ping-orange">
+              <span class="text-xs text-slate-200" x-text="src.label"></span>
+            </label>
+          </template>
+          <div class="border-t border-slate-600 my-1"></div>
+          <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">IDM Sources</div>
+          <template x-for="src in availableSources.filter(s => s.id.startsWith('idm-'))" :key="src.id">
+            <label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-600 cursor-pointer">
+              <input type="checkbox" :value="src.id" x-model="activeSources" @change="restartTail()" class="rounded border-slate-500 bg-slate-800 text-ping-orange focus:ring-ping-orange">
+              <span class="text-xs text-slate-200" x-text="src.label"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+
+      <!-- Level filter -->
+      <select x-model="logLevelFilter" class="bg-slate-700 border-0 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-200 focus:ring-2 focus:ring-ping-orange cursor-pointer">
+        <option value="ALL">All Levels</option>
+        <option value="ERROR">ERROR</option>
+        <option value="WARNING">WARNING</option>
+        <option value="WARN">WARN</option>
+        <option value="INFO">INFO</option>
+        <option value="DEBUG">DEBUG</option>
+      </select>
+
+      <!-- Text search -->
+      <div class="relative flex-1 min-w-[200px] max-w-md">
+        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" x-model="textSearch" placeholder="Search logs..."
+          class="w-full bg-slate-700 border-0 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:ring-2 focus:ring-ping-orange">
+      </div>
+
+      <!-- Transaction ID -->
+      <div class="relative">
+        <input type="text" x-model="transactionIdFilter" placeholder="Transaction ID..."
+          class="bg-slate-700 border-0 rounded-lg px-3 py-1.5 pr-7 text-xs text-white placeholder-slate-400 focus:ring-2 focus:ring-ping-orange w-40"
+          :class="transactionIdFilter ? 'ring-2 ring-ping-orange' : ''">
+        <button x-show="transactionIdFilter" @click="transactionIdFilter = ''" x-transition
+          class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white" title="Clear transaction filter">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Noise filter dropdown -->
+      <div class="relative" @click.away="showNoiseDropdown = false">
+        <button @click="showNoiseDropdown = !showNoiseDropdown"
+          :class="enabledNoiseCategoryCount > 0 ? 'bg-ping-orange text-white' : 'bg-slate-700 text-slate-300'"
+          class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-90">
+          <span>Noise Filter</span>
+          <span class="bg-white/20 rounded-full px-1.5 py-0.5 text-[10px]" x-text="enabledNoiseCategoryCount + '/' + totalNoiseCategoryCount"></span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="showNoiseDropdown" x-transition
+          class="absolute top-full left-0 mt-1 w-72 bg-slate-700 rounded-lg border border-slate-600 shadow-xl z-50 py-2 max-h-[70vh] overflow-y-auto">
+          <!-- Enable/Disable all -->
+          <div class="px-3 py-1.5 flex items-center justify-between border-b border-slate-600 mb-1">
+            <button @click="enableAllNoiseCategories()" class="text-[10px] text-ping-orange hover:text-orange-300">Enable All</button>
+            <button @click="disableAllNoiseCategories()" class="text-[10px] text-slate-400 hover:text-white">Disable All</button>
+          </div>
+
+          <!-- HIGH noise -->
+          <div class="px-3 py-1 text-[10px] font-semibold text-red-400 uppercase tracking-wider">High Noise</div>
+          <template x-for="cat in noiseCategoriesByLevel.high" :key="cat.id">
+            <label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-600 cursor-pointer" :title="cat.description">
+              <input type="checkbox" :checked="isNoiseCategoryEnabled(cat.id)" @change="toggleNoiseCategory(cat.id)"
+                class="rounded border-slate-500 bg-slate-800 text-ping-orange focus:ring-ping-orange">
+              <span class="text-xs text-slate-200 flex-1" x-text="cat.name"></span>
+              <span class="text-[10px] text-slate-500" x-text="'(' + getCategoryLoggerCount(cat) + ')'"></span>
+            </label>
+          </template>
+
+          <!-- MEDIUM noise -->
+          <div class="border-t border-slate-600 my-1"></div>
+          <div class="px-3 py-1 text-[10px] font-semibold text-yellow-400 uppercase tracking-wider">Medium Noise</div>
+          <template x-for="cat in noiseCategoriesByLevel.medium" :key="cat.id">
+            <label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-600 cursor-pointer" :title="cat.description">
+              <input type="checkbox" :checked="isNoiseCategoryEnabled(cat.id)" @change="toggleNoiseCategory(cat.id)"
+                class="rounded border-slate-500 bg-slate-800 text-ping-orange focus:ring-ping-orange">
+              <span class="text-xs text-slate-200 flex-1" x-text="cat.name"></span>
+              <span class="text-[10px] text-slate-500" x-text="'(' + getCategoryLoggerCount(cat) + ')'"></span>
+            </label>
+          </template>
+
+          <!-- LOW noise -->
+          <div class="border-t border-slate-600 my-1"></div>
+          <div class="px-3 py-1 text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Low Noise (useful for debugging)</div>
+          <template x-for="cat in noiseCategoriesByLevel.low" :key="cat.id">
+            <label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-600 cursor-pointer" :title="cat.description">
+              <input type="checkbox" :checked="isNoiseCategoryEnabled(cat.id)" @change="toggleNoiseCategory(cat.id)"
+                class="rounded border-slate-500 bg-slate-800 text-ping-orange focus:ring-ping-orange">
+              <span class="text-xs text-slate-200 flex-1" x-text="cat.name"></span>
+              <span class="text-[10px] text-slate-500" x-text="'(' + getCategoryLoggerCount(cat) + ')'"></span>
+            </label>
+          </template>
+
+          <!-- IDM -->
+          <template x-if="noiseCategoriesByLevel.idm.length > 0">
+            <div>
+              <div class="border-t border-slate-600 my-1"></div>
+              <div class="px-3 py-1 text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">IDM</div>
+              <template x-for="cat in noiseCategoriesByLevel.idm" :key="cat.id">
+                <label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-600 cursor-pointer" :title="cat.description">
+                  <input type="checkbox" :checked="isNoiseCategoryEnabled(cat.id)" @change="toggleNoiseCategory(cat.id)"
+                    class="rounded border-slate-500 bg-slate-800 text-ping-orange focus:ring-ping-orange">
+                  <span class="text-xs text-slate-200 flex-1" x-text="cat.name"></span>
+                  <span class="text-[10px] text-slate-500" x-text="'(' + getCategoryLoggerCount(cat) + ')'"></span>
+                </label>
+              </template>
+            </div>
+          </template>
+
+          <!-- Custom muted link -->
+          <div x-show="customNoiseLoggers.length > 0" class="border-t border-slate-600 mt-1 px-3 py-1.5">
+            <button @click="showNoiseDropdown = false; showSettings = true" class="text-[10px] text-slate-400 hover:text-white">
+              Custom muted: <span x-text="customNoiseLoggers.length"></span> loggers <span class="text-slate-500">[Manage]</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tail controls -->
+      <div class="flex items-center gap-1 ml-auto">
+        <button @click="togglePause()" :class="paused ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'"
+          class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors">
+          <span x-text="paused ? 'Resume' : 'Pause'"></span>
+        </button>
+        <button @click="clearLogs()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors">
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Tailing stopped banner -->
+    <div x-show="!tailing && !historyLoading" x-transition
+      class="bg-slate-700/80 border-b border-slate-600 px-4 py-2 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2 text-xs text-slate-300">
+        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Live tailing stopped — viewing historical results</span>
+      </div>
+      <button @click="resumeTailing()"
+        class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg px-4 py-1.5 text-xs transition-colors flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        Resume Live Tailing
+      </button>
+    </div>
+
+    <!-- LOG VIEWER -->
+    <div class="flex-1 overflow-hidden relative">
+      <div x-ref="logContainer" @scroll="handleScroll()" class="h-full overflow-y-auto font-mono text-xs leading-relaxed">
+        <!-- Log header row -->
+        <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-4 py-1.5 flex items-center gap-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider z-10">
+          <span class="w-20">Time</span>
+          <span class="w-24">Source</span>
+          <span class="w-14">Level</span>
+          <span class="w-64">Logger</span>
+          <span class="w-32">Transaction ID</span>
+          <span class="flex-1">Message</span>
+        </div>
+
+        <template x-for="log in filteredLogs" :key="log.id">
+          <div>
+            <div @click="log.expanded = !log.expanded"
+              :class="{
+                'border-l-2 border-red-500 bg-red-950/20': log.level === 'ERROR',
+                'border-l-2 border-yellow-500 bg-yellow-950/10': log.level === 'WARNING' || log.level === 'WARN',
+                'border-l-2 border-transparent hover:bg-slate-800/50': log.level !== 'ERROR' && log.level !== 'WARNING' && log.level !== 'WARN'
+              }"
+              class="px-4 py-1 flex items-start gap-3 cursor-pointer border-b border-slate-800/50 transition-colors">
+              <span class="w-20 text-slate-400 shrink-0" x-text="formatTime(log.timestamp)"></span>
+              <span class="w-24 shrink-0">
+                <span :class="log.source.startsWith('am-') ? 'bg-amber-700 text-amber-100' : 'bg-cyan-700 text-cyan-100'"
+                  class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
+                  x-text="formatSource(log.source)"></span>
+              </span>
+              <span class="w-14 shrink-0"
+                :class="{
+                  'text-red-400 font-semibold': log.level === 'ERROR',
+                  'text-yellow-400': log.level === 'WARNING' || log.level === 'WARN',
+                  'text-blue-300': log.level === 'INFO',
+                  'text-slate-500': log.level === 'DEBUG'
+                }" x-text="log.level || '-'"></span>
+              <span class="w-64 shrink-0 flex items-center gap-1 group/logger">
+                <span class="text-slate-300 truncate" x-text="log.logger || '-'" :title="log.logger"></span>
+                <button x-show="log.logger && !isLoggerMuted(log.logger)" @click.stop="muteLogger(log.logger)"
+                  class="opacity-0 group-hover/logger:opacity-100 text-slate-500 hover:text-red-400 shrink-0 transition-opacity" title="Mute this logger">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+                </button>
+              </span>
+              <span class="w-32 shrink-0 group/txn" @click.stop="log.transactionId && (transactionIdFilter = log.transactionId)">
+                <span x-show="log.transactionId" class="cursor-pointer" :title="log.transactionId">
+                  <span class="group-hover/txn:hidden text-slate-500 truncate block" x-text="log.transactionId.substring(0, 12) + '...'"></span>
+                  <span class="hidden group-hover/txn:inline-flex items-center gap-1 bg-ping-orange/90 text-white text-[10px] font-medium rounded px-1.5 py-0.5">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    Trace <span x-text="log.transactionId.substring(0, 8) + '...'"></span>
+                  </span>
+                </span>
+                <span x-show="!log.transactionId" class="text-slate-500">-</span>
+              </span>
+              <span class="flex-1 text-slate-200 truncate" x-text="log.message"></span>
+            </div>
+            <!-- Expanded payload -->
+            <div x-show="log.expanded" x-transition class="bg-slate-950 border-b border-slate-700 px-4 py-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-semibold text-slate-400 uppercase">Full Payload</span>
+                <div class="flex items-center gap-3">
+                  <button x-show="log.logger && !isLoggerMuted(log.logger)" @click.stop="muteLogger(log.logger)"
+                    class="text-[10px] text-red-400 hover:text-red-300 transition-colors">Mute Logger</button>
+                  <button @click.stop="copyPayload(log)" class="text-[10px] text-slate-400 hover:text-white transition-colors">Copy JSON</button>
+                </div>
+              </div>
+              <pre class="text-[11px] text-slate-300 whitespace-pre-wrap break-all max-h-96 overflow-y-auto" x-html="syntaxHighlight(log.payload)"></pre>
+            </div>
+          </div>
+        </template>
+
+        <!-- Empty state -->
+        <div x-show="filteredLogs.length === 0 && tailing" class="flex items-center justify-center h-64 text-slate-500 text-sm">
+          <div class="text-center">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-50 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <p>Waiting for logs...</p>
+            <p class="text-xs text-slate-600 mt-1">Tailing <span x-text="activeSources.join(', ')"></span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auto-scroll resume button -->
+      <button x-show="!autoScroll && tailing" @click="resumeAutoScroll()" x-transition
+        class="absolute top-4 right-4 bg-ping-orange hover:bg-orange-600 text-white rounded-full px-4 py-2 text-xs font-medium shadow-lg transition-colors flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+        Latest logs
+      </button>
+    </div>
+
+    <!-- STATUS BAR -->
+    <footer class="bg-slate-800 border-t border-slate-700 px-4 py-1.5 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+      <div class="flex items-center gap-4">
+        <span>Logs: <span class="text-white" x-text="filteredLogs.length"></span> shown (<span x-text="logs.length"></span> total)</span>
+        <span x-show="tailing" class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          Tailing
+        </span>
+        <span x-show="!tailing" class="flex items-center gap-1 text-amber-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          Historical
+        </span>
+        <span x-show="paused" class="flex items-center gap-1 text-yellow-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+          Paused
+        </span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span x-show="rateLimit.limit > 0">Rate: <span class="text-white" x-text="rateLimit.remaining"></span>/<span x-text="rateLimit.limit"></span></span>
+        <span>Poll: <span class="text-white" x-text="pollFrequency + 's'"></span></span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- SETTINGS PANEL (slide-over) -->
+  <div x-show="showSettings" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+    class="fixed top-0 right-0 h-full w-80 bg-slate-800 border-l border-slate-700 shadow-2xl z-50 overflow-y-auto">
+    <div class="p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Settings</h2>
+        <button @click="showSettings = false" class="text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Poll Frequency: <span x-text="pollFrequency + 's'" class="text-white"></span></label>
+          <input type="range" x-model.number="pollFrequency" min="2" max="30" step="1" class="w-full accent-ping-orange">
+          <div class="flex justify-between text-[10px] text-slate-500"><span>2s</span><span>30s</span></div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Max Log Buffer: <span x-text="maxLogBuffer" class="text-white"></span></label>
+          <input type="range" x-model.number="maxLogBuffer" min="1000" max="10000" step="1000" class="w-full accent-ping-orange">
+          <div class="flex justify-between text-[10px] text-slate-500"><span>1K</span><span>10K</span></div>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" x-model="autoScroll" class="rounded border-slate-500 bg-slate-900 text-ping-orange focus:ring-ping-orange">
+          <span class="text-xs text-slate-300">Auto-scroll to bottom</span>
+        </label>
+      </div>
+
+      <!-- Noise Categories (expandable) -->
+      <div class="mt-4 pt-4 border-t border-slate-600">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-xs font-semibold text-ping-orange">Noise Categories</h3>
+          <span class="text-[10px] text-slate-500" x-text="enabledNoiseCategoryCount + '/' + totalNoiseCategoryCount + ' enabled'"></span>
+        </div>
+        <p class="text-[10px] text-slate-500 mb-2">Categories of loggers filtered from results. Expand to see individual loggers in each category.</p>
+
+        <template x-for="[level, label, color] in [['high', 'HIGH NOISE', 'text-red-400'], ['medium', 'MEDIUM NOISE', 'text-yellow-400'], ['low', 'LOW NOISE', 'text-blue-400'], ['idm', 'IDM', 'text-cyan-400']]" :key="level">
+          <div x-show="(noiseCategoriesByLevel[level] || []).length > 0" class="mb-2">
+            <div class="text-[9px] font-semibold uppercase tracking-wider mb-1" :class="color" x-text="label"></div>
+            <template x-for="cat in (noiseCategoriesByLevel[level] || [])" :key="cat.id">
+              <div class="mb-1" x-data="{ expanded: false }">
+                <div class="flex items-center gap-2 py-0.5 group">
+                  <input type="checkbox" :checked="isNoiseCategoryEnabled(cat.id)"
+                    @change="toggleNoiseCategory(cat.id)"
+                    class="rounded border-slate-500 bg-slate-900 text-ping-orange focus:ring-ping-orange w-3 h-3">
+                  <button @click="expanded = !expanded" class="flex-1 flex items-center justify-between min-w-0">
+                    <span class="text-[11px] text-slate-300 truncate" x-text="cat.name" :title="cat.description"></span>
+                    <div class="flex items-center gap-1 shrink-0 ml-1">
+                      <span class="text-[9px] text-slate-500" x-text="'(' + getCategoryLoggerCount(cat) + ')'"></span>
+                      <svg class="w-3 h-3 text-slate-500 transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
+                  </button>
+                </div>
+                <!-- Expanded logger list -->
+                <div x-show="expanded" x-transition class="ml-5 mt-1 mb-2 max-h-32 overflow-y-auto">
+                  <template x-for="logger in (cat.loggers || [])" :key="logger">
+                    <div class="text-[9px] text-slate-500 py-0.5 truncate font-mono" x-text="logger" :title="logger"></div>
+                  </template>
+                  <template x-if="cat.prefixes && cat.prefixes.length > 0">
+                    <div>
+                      <template x-for="prefix in cat.prefixes" :key="prefix">
+                        <div class="text-[9px] text-slate-500 py-0.5 truncate font-mono italic" x-text="prefix + '.*'" :title="'Prefix match: ' + prefix"></div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Custom noise filters (always visible) -->
+      <div class="mt-4 pt-4 border-t border-slate-600">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-xs font-semibold text-red-400">Muted Loggers</h3>
+          <span x-show="customNoiseLoggers.length > 0" class="text-[10px] text-slate-500" x-text="customNoiseLoggers.length + ' muted'"></span>
+        </div>
+        <p class="text-[10px] text-slate-500 mb-2">Add logger names to always hide from results. You can also hover a logger name in the log viewer and click the mute icon.</p>
+        <!-- Manual add input -->
+        <div class="flex gap-1 mb-2" x-data="{ newLogger: '' }">
+          <input type="text" x-model="newLogger" placeholder="e.g. org.forgerock.openam.core.rest..."
+            @keydown.enter="if(newLogger.trim()) { muteLogger(newLogger.trim()); newLogger = ''; }"
+            class="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 focus:ring-1 focus:ring-ping-orange focus:outline-none">
+          <button @click="if(newLogger.trim()) { muteLogger(newLogger.trim()); newLogger = ''; }"
+            class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded px-2 py-1 text-[10px] shrink-0">Add</button>
+        </div>
+        <!-- Muted list -->
+        <div x-show="customNoiseLoggers.length > 0" class="space-y-1 max-h-48 overflow-y-auto">
+          <template x-for="(logger, idx) in customNoiseLoggers" :key="idx">
+            <div class="flex items-center justify-between bg-slate-900 rounded px-2 py-1 group">
+              <span class="text-[10px] text-slate-300 truncate" x-text="logger" :title="logger"></span>
+              <button @click="unmuteLogger(logger)" class="text-[10px] text-slate-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">Unmute</button>
+            </div>
+          </template>
+        </div>
+        <div x-show="customNoiseLoggers.length === 0" class="text-[10px] text-slate-600 italic">No custom muted loggers</div>
+        <button x-show="customNoiseLoggers.length > 0" @click="customNoiseLoggers = []; localStorage.setItem('aic-sentinel-custom-noise', '[]')"
+          class="text-[10px] text-slate-500 hover:text-red-400 mt-2">Clear all</button>
+      </div>
+
+      <!-- Hidden custom headers section -->
+      <div x-show="showCustomHeaders" x-transition class="mt-6 pt-4 border-t border-slate-600">
+        <h3 class="text-xs font-semibold text-purple-400 mb-3">Custom HTTP Headers</h3>
+        <div class="space-y-2">
+          <template x-for="(header, idx) in customHeaders" :key="idx">
+            <div class="flex gap-1">
+              <input type="text" x-model="header.name" placeholder="Header name"
+                class="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500">
+              <input type="text" x-model="header.value" placeholder="Value"
+                class="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500">
+              <button @click="customHeaders.splice(idx, 1)" class="text-red-400 hover:text-red-300 px-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </template>
+          <button @click="customHeaders.push({ name: '', value: '' })" class="text-xs text-purple-400 hover:text-purple-300">+ Add Header</button>
+        </div>
+      </div>
+
+      <p class="text-[10px] text-slate-600 mt-6 text-center cursor-default select-none" @click="handleVersionClick()" x-text="'v1.0.0'"></p>
+    </div>
+  </div>
+
+  <!-- HISTORY PANEL (slide-over) -->
+  <div x-show="showHistory" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+    class="fixed top-0 right-0 h-full w-96 bg-slate-800 border-l border-slate-700 shadow-2xl z-50 overflow-y-auto">
+    <div class="p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Historical Search</h2>
+        <button @click="showHistory = false" class="text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <!-- Quick presets -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Quick Range</label>
+          <div class="grid grid-cols-2 gap-1">
+            <button @click="setHistoryRange(15)" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-1.5 text-xs text-slate-200">Last 15 min</button>
+            <button @click="setHistoryRange(60)" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-1.5 text-xs text-slate-200">Last 1 hour</button>
+            <button @click="setHistoryRange(360)" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-1.5 text-xs text-slate-200">Last 6 hours</button>
+            <button @click="setHistoryRange(1440)" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-1.5 text-xs text-slate-200">Last 24 hours</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Start Date & Time</label>
+          <input type="datetime-local" x-model="historyStart" step="1"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-2 focus:ring-ping-orange">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">End Date & Time</label>
+          <input type="datetime-local" x-model="historyEnd" step="1"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-2 focus:ring-ping-orange">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Transaction ID (optional)</label>
+          <input type="text" x-model="historyTxnId" placeholder="Filter by transaction ID"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-ping-orange">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Query Filter (optional)</label>
+          <input type="text" x-model="historyQueryFilter" placeholder="/payload/level eq &quot;ERROR&quot;"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-ping-orange">
+        </div>
+
+        <div x-show="historyError" class="bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 text-xs text-red-300" x-text="historyError"></div>
+
+        <button @click="searchHistory()" :disabled="historyLoading"
+          class="w-full bg-ping-orange hover:bg-orange-600 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2 text-xs transition-colors">
+          <span x-show="!historyLoading">Search</span>
+          <span x-show="historyLoading" class="flex items-center justify-center gap-2">
+            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Searching...
+          </span>
+        </button>
+
+        <button x-show="historyNextCookie" @click="loadMoreHistory()" :disabled="historyLoading"
+          class="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 font-medium rounded-lg px-4 py-2 text-xs transition-colors">
+          Load More Results
+        </button>
+
+        <button x-show="!tailing" @click="resumeTailing()"
+          class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg px-4 py-2 text-xs transition-colors">
+          Resume Live Tailing
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div x-show="showExport" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div @click.away="showExport = false" class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl p-6 w-96">
+      <h2 class="text-sm font-semibold text-white mb-4">Export Logs</h2>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Format</label>
+          <select x-model="exportFormat" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-2 focus:ring-ping-orange">
+            <option value="json">JSON (Pretty)</option>
+            <option value="text">Human-Readable Text</option>
+            <option value="csv">CSV</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Scope</label>
+          <select x-model="exportScope" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-2 focus:ring-ping-orange">
+            <option value="filtered">Visible/Filtered Logs</option>
+            <option value="all">All Logs</option>
+          </select>
+        </div>
+        <p class="text-[10px] text-slate-400">
+          <span x-text="(exportScope === 'filtered' ? filteredLogs.length : logs.length) + ' entries'"></span> will be exported
+        </p>
+        <div class="flex gap-2">
+          <button @click="exportLogs()" class="flex-1 bg-ping-orange hover:bg-orange-600 text-white font-medium rounded-lg px-4 py-2 text-xs transition-colors">Download</button>
+          <button @click="showExport = false" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium rounded-lg px-4 py-2 text-xs transition-colors">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/js/utils/formatter.js"></script>
+  <script src="/js/utils/timeUtils.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
