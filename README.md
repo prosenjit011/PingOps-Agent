@@ -10,7 +10,6 @@ A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live taili
 
 ## Overview
 
-<<<<<<< HEAD
 PingOps-Agent provides a browser-based dashboard for monitoring and searching PingOne Advanced Identity Cloud logs. Unlike CLI-based tools that separate AM and IDM log streams, this tool presents a unified, filterable view of all log sources in a single interface.
 
 Key capabilities:
