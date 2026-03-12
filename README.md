@@ -7,10 +7,10 @@ A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live taili
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)
 ![Express](https://img.shields.io/badge/Express-4.x-lightgrey)
-![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## Overview
 
+<<<<<<< HEAD
 PingOps-Agent provides a browser-based dashboard for monitoring and searching PingOne Advanced Identity Cloud logs. Unlike CLI-based tools that separate AM and IDM log streams, this tool presents a unified, filterable view of all log sources in a single interface.
 
 Key capabilities:
@@ -23,6 +23,9 @@ Key capabilities:
 - **Saved connections** - save and manage multiple tenant connections with masked credentials
 - **Session persistence** - connection state and filters persist across page refresh
 - **Export** - download logs as JSON, human-readable text, or CSV
+=======
+PingOps Trace Agent s a browser-based monitoring dashboard designed to simplify how teams observe and investigate logs from PingOne Advanced Identity Cloud (AIC). It consolidates multiple log streams into a single, searchable interface, enabling faster operational insights and more efficient troubleshooting compared to traditional command-line tools.
+>>>>>>> 6088f44 (readme)
 
 ## Design Philosophy & Related Tools
 
